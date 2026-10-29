@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AR Cowboy Simpulan Bahasa</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Outfit:wght@400;600;800&family=Rye&display=swap" rel="stylesheet">
+
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+
+    <!-- MediaPipe -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        :root {
+            --wood-dark: #451a03;
+            --wood-medium: #78350f;
+            --wood-light: #fef3c7;
+            --accent-cyan: #06b6d4;
+            --accent-gold: #f59e0b;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--wood-dark);
+            color: var(--wood-light);
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+        }
+
+        h1, h2, .font-rye { font-family: 'Rye', cursive; }
+        .font-bangers { font-family: 'Bangers', cursive; letter-spacing: 1px; }
+
+        /* Custom UI Elements */
+        .wood-panel {
+            background-color: #d97706;
+            background-image: repeating-linear-gradient(
+                45deg,
+                transparent,
+                transparent 10px,
+                rgba(0,0,0,0.05) 10px,
+                rgba(0,0,0,0.05) 20px
+            );
+            border: 4px solid var(--wood-dark);
+            border-radius: 12px;
+            box-shadow: 0 8px 0 var(--wood-dark), 0 15px 20px rgba(0,0,0,0.5);
+            color: white;
+        }
+
+        .btn-wood {
+            background-color: var(--wood-medium);
+            border: 3px solid var(--wood-light);
+            border-radius: 8px;
+            box-shadow: 0 4px 0 #290f01, 0 6px 10px rgba(0,0,0,0.3);
+            transition: all 0.1s;
+            cursor: pointer;
+        }
+        .btn-wood:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 #290f01, 0 2px 5px rgba(0,0,0,0.3);
+        }
+        .btn-wood:disabled {
+            filter: grayscale(100%);
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: 0 4px 0 #290f01;
+        }
+
+        .target-card {
+            background-color: var(--wood-light);
+            color: var(--wood-dark);
+            border: 4px dashed var(--wood-medium);
+            border-radius: 12px;
+            box-shadow: 0 6px 0 var(--wood-medium);
+            transition: all 0.2s;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+        .target-card.locked {
+            border-color: var(--accent-cyan);
+            border-style: solid;
+            background-color: #cffafe;
+            box-shadow: 0 0 20px var(--accent-cyan), 0 6px 0 var(--accent-cyan);
+            transform: scale(1.05);
+        }
+        .target-card.correct {
+            background-color: #bbf7d0;
+            border-color: #16a34a;
+            box-shadow: 0 0 20px #16a34a, 0 6px 0 #16a34a;
+        }
+        .target-card.wrong {
+            background-color: #fecdd3;
+            border-color: #e11d48;
+            box-shadow: 0 0 20px #e11d48, 0 6px 0 #e11d48;
+            opacity: 0.7;
+        }
+
+        .target-label {
+            position: absolute;
+            top: -4px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: var(--wood-medium);
+            color: white;
+            font-size: 0.7rem;
+            padding: 2px 10px;
+            border-bottom-left-radius: 8px;
+            border-bottom-right-radius: 8px;
+            font-family: 'Bangers', cursive;
+            letter-spacing: 1px;
+        }
+
+        /* Camera and Cursor */
+        #camera-container {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: -1;
+            background: #87CEEB; /* Fallback sky color */
+        }
+        #video-feed {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1); /* Mirror camera */
+        }
+        .no-camera-bg {
+            background: linear-gradient(to bottom, #4facfe 0%, #00f2fe 50%, #f6d365 50%, #fda085 100%);
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1;
+        }
+
+        #custom-cursor {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background-color: rgba(255, 255, 255, 0.8);
+            border: 4px solid var(--accent-gold);
+            border-radius: 50%;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            z-index: 100;
+            display: none;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            transition: width 0.1s, height 0.1s, background-color 0.1s, border-color 0.1s;
+        }
+        #custom-cursor.locked {
+            border-color: var(--accent-cyan);
+            background-color: rgba(6, 182, 212, 0.5);
+            width: 50px;
+            height: 50px;
+        }
+        #custom-cursor.pinching {
+            width: 30px;
+            height: 30px;
+            background-color: white;
+        }
+
+        /* Lock Progress Ring */
+        #cursor-progress {
+            position: absolute;
+            inset: -6px;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            border-top-color: var(--accent-gold);
+            animation: spin 0.35s linear infinite;
+            display: none;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Floating Text Animation */
+        .float-text {
+            position: absolute;
+            font-family: 'Bangers', cursive;
+            font-size: 2rem;
+            color: var(--accent-gold);
+            text-shadow: 2px 2px 0 #000;
+            pointer-events: none;
+            animation: floatUp 1s ease-out forwards;
+            z-index: 110;
+        }
+        @keyframes floatUp {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-50px) scale(1.5); opacity: 0; }
+        }
+
+        /* Flash Effect */
+        #flash-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: white;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 90;
+            transition: opacity 0.1s;
+        }
+
+        /* Utilities */
+        .hidden { display: none !important; }
+        .blur-sm { filter: blur(4px); }
+    </style>
+</head>
+<body class="w-screen h-screen flex flex-col items-center justify-center">
+
+    <!-- Sound Manager (Audio API) initialized in JS -->
+
+    <!-- BACKGROUNDS -->
+    <div id="camera-container" class="hidden">
+        <video id="video-feed" autoplay playsinline></video>
+    </div>
+    <div id="no-camera-bg" class="no-camera-bg hidden">
+        <!-- Decorative CSS Cowboy Town -->
+        <div class="absolute bottom-0 w-full h-1/3 bg-amber-700 flex justify-around items-end pb-4 opacity-50">
+            <div class="w-16 h-24 bg-amber-900 rounded-t-lg"></div>
+            <div class="w-24 h-32 bg-amber-800 rounded-t-lg"></div>
+            <div class="w-20 h-20 bg-amber-900 rounded-t-lg"></div>
+        </div>
+    </div>
+    <div id="flash-overlay"></div>
+
+    <!-- MAIN MENU -->
+    <div id="screen-menu" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div class="wood-panel p-6 md:p-10 max-w-lg w-full text-center flex flex-col items-center gap-6">
+            <h1 class="text-4xl md:text-5xl text-yellow-300 drop-shadow-md leading-tight">
+                🤠 AR COWBOY<br>SIMPULAN BAHASA
+            </h1>
+            <h2 class="text-xl md:text-2xl text-white">Cowboy Cilik: Misi Memburu Maksud</h2>
+            <p class="text-sm bg-black/30 px-3 py-1 rounded-full">Permainan AR Simpulan Bahasa — BM Sekolah Rendah</p>
+
+            <div class="bg-amber-100/10 p-4 rounded-lg w-full text-left text-sm md:text-base space-y-3">
+                <div class="flex items-center gap-3">
+                    <span class="text-2xl">☝️</span>
+                    <p><strong>ARAHKAN TELUNJUK</strong><br>Gerakkan jari ke kad jawapan.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="text-2xl">🎯</span>
+                    <p><strong>KUNCI SASARAN</strong><br>Tunggu kad bertukar warna cyan.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="text-2xl">🤏</span>
+                    <p><strong>CUBIT UNTUK MENEMBAK</strong><br>Rapatkan ibu jari dan telunjuk.</p>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-3 w-full mt-2">
+                <button onclick="startGame(true)" class="btn-wood py-3 text-xl font-bangers text-white w-full flex items-center justify-center gap-2">
+                    <i class="fas fa-video"></i> BUKA KAMERA & MULA
+                </button>
+                <button onclick="startGame(false)" class="btn-wood py-3 text-xl font-bangers text-amber-200 w-full flex items-center justify-center gap-2" style="background-color: var(--wood-dark);">
+                    <i class="fas fa-mouse-pointer"></i> MAIN TANPA KAMERA
+                </button>
+            </div>
+            <p class="text-xs text-amber-200/70">*Benarkan akses kamera jika bermain mod AR.</p>
+        </div>
+    </div>
+
+    <!-- GAME HUD & PLAY AREA -->
+    <div id="screen-game" class="absolute inset-0 z-10 flex flex-col hidden">
+        
+        <!-- Top HUD -->
+        <div class="flex justify-between items-center p-2 md:p-4 bg-gradient-to-b from-black/70 to-transparent">
+            <div class="flex items-center gap-2">
+                <button onclick="quitGame()" class="btn-wood px-3 py-1 text-sm bg-red-800 border-red-300">
+                    <i class="fas fa-home"></i> MENU
+                </button>
+                <button id="btn-mute" onclick="toggleMute()" class="btn-wood px-3 py-1 text-sm bg-blue-800 border-blue-300">
+                    <i class="fas fa-volume-up"></i>
+                </button>
+                <button id="btn-cam-help" onclick="toggleCamHelp()" class="btn-wood px-3 py-1 text-sm bg-amber-700 border-amber-300 hidden">
+                    <i class="fas fa-question-circle"></i> BANTUAN
+                </button>
+            </div>
+            
+            <div class="flex flex-col items-center">
+                <span class="font-bangers text-xl md:text-3xl text-yellow-300 drop-shadow-[0_2px_2px_#000]" id="score-display">0 MATA</span>
+                <span class="font-bangers text-sm md:text-lg text-cyan-300 drop-shadow-[0_2px_2px_#000] hidden" id="combo-display">KOMBO x1</span>
+            </div>
+        </div>
+
+        <!-- Question Panel -->
+        <div class="w-full max-w-2xl mx-auto mt-2 px-4">
+            <div class="wood-panel p-3 md:p-5 text-center relative">
+                <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-950 px-4 py-1 rounded-full text-xs font-bold border-2 border-amber-700">
+                    SOALAN <span id="q-current">1</span> / 10
+                </div>
+                <p class="text-sm text-amber-200 mb-1 mt-2">Pilih simpulan bahasa yang sesuai dengan situasi.</p>
+                <p class="text-lg md:text-2xl font-bold leading-tight" id="question-text">Memuatkan soalan...</p>
+            </div>
+        </div>
+
+        <!-- Middle Spacer for camera visibility & Help Box -->
+        <div class="flex-grow flex flex-col items-center justify-center relative">
+            <div id="loading-cam-msg" class="bg-black/50 px-4 py-2 rounded-full text-white text-sm hidden">
+                Sedang memulakan kamera...
+            </div>
+
+            <!-- Cam Trouble Panel -->
+            <div id="cam-trouble-box" class="bg-black/85 border-2 border-amber-400 p-4 rounded-xl text-center max-w-sm mx-4 hidden shadow-2xl backdrop-blur-md">
+                <p class="text-yellow-300 font-bold mb-2">🖐️ Tangan Tak Dikesan?</p>
+                <ul class="text-xs text-left text-amber-100 list-disc list-inside space-y-1 mb-3">
+                    <li>Pastikan pencahayaan cukup terang.</li>
+                    <li>Jarakkan tangan sekitar 30cm-50cm dari kamera.</li>
+                    <li>Tunjukkan tapak/belakang tangan dengan jelas.</li>
+                    <li>Atau tekan untuk main guna sentuhan.</li>
+                </ul>
+                <div class="flex gap-2">
+                    <button onclick="switchModeToTouch()" class="btn-wood text-xs py-2 flex-1 bg-cyan-800 border-cyan-300">
+                        <i class="fas fa-hand-pointer"></i> TUKAR KE SENTUH/TETIKUS
+                    </button>
+                    <button onclick="toggleCamHelp()" class="btn-wood text-xs py-2 px-3 bg-amber-900 border-amber-300">
+                        TUTUP
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Targets -->
+        <div class="w-full p-4 mb-16 md:mb-12">
+            <div class="max-w-4xl mx-auto grid grid-cols-3 gap-2 md:gap-6" id="choices-container">
+                <!-- Cards generated via JS -->
+            </div>
+        </div>
+
+        <!-- Bottom Status Bar -->
+        <div class="absolute bottom-0 left-0 right-0 bg-black/80 backdrop-blur-sm p-2 flex justify-between items-center text-xs md:text-sm">
+            <div class="flex items-center gap-2">
+                <i class="fas fa-satellite-dish text-cyan-400"></i>
+                <span id="status-text">Menunggu permainan bermula...</span>
+            </div>
+            <button id="btn-manual-shoot" onclick="manualShoot()" class="btn-wood px-4 py-1 bg-cyan-700 border-cyan-300 font-bold hidden">
+                ✨ TEMBAK SEKARANG
+            </button>
+        </div>
+    </div>
+
+    <!-- FEEDBACK MODAL -->
+    <div id="modal-feedback" class="absolute inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="wood-panel p-6 max-w-md w-full text-center flex flex-col items-center shadow-[0_0_50px_rgba(0,0,0,0.8)]">
+            <div id="feedback-icon" class="text-5xl md:text-6xl mb-4"></div>
+            <h2 id="feedback-title" class="text-3xl font-bangers mb-2"></h2>
+            <p id="feedback-desc" class="text-lg md:text-xl font-bold text-amber-100 mb-4"></p>
+            <div class="bg-black/30 p-3 rounded-lg w-full mb-6 text-sm text-left border border-amber-900/50">
+                <span class="text-amber-300 block mb-1 text-xs uppercase font-bold">Penerangan:</span>
+                <p id="feedback-explanation"></p>
+            </div>
+            <button onclick="nextQuestion()" class="btn-wood py-3 px-8 text-xl font-bangers w-full">
+                SOALAN SETERUSNYA <i class="fas fa-arrow-right ml-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- END SCREEN -->
+    <div id="screen-end" class="absolute inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 hidden overflow-y-auto">
+        <div class="wood-panel p-6 max-w-2xl w-full text-center my-8">
+            <h1 class="text-4xl md:text-5xl text-yellow-300 mb-2 drop-shadow-lg">MISI SELESAI!</h1>
+            
+            <div id="stars-container" class="flex justify-center gap-4 my-6 text-5xl md:text-7xl drop-shadow-lg">
+                <!-- Stars JS -->
+            </div>
+            <p id="end-message" class="text-xl font-bold mb-6"></p>
+
+            <div class="grid grid-cols-2 gap-4 bg-black/40 p-4 rounded-xl mb-6">
+                <div>
+                    <p class="text-sm text-amber-300">Jumlah Mata</p>
+                    <p class="text-3xl font-bangers" id="stat-score">0</p>
+                </div>
+                <div>
+                    <p class="text-sm text-amber-300">Kombo Tertinggi</p>
+                    <p class="text-3xl font-bangers" id="stat-combo">x0</p>
+                </div>
+                <div>
+                    <p class="text-sm text-amber-300">Jawapan Betul</p>
+                    <p class="text-2xl font-bold" id="stat-correct">0 / 10</p>
+                </div>
+                <div>
+                    <p class="text-sm text-amber-300">Ketepatan</p>
+                    <p class="text-2xl font-bold" id="stat-accuracy">0%</p>
+                </div>
+            </div>
+
+            <!-- Review Section -->
+            <div id="review-section" class="mb-6 hidden">
+                <h3 class="font-bangers text-2xl text-cyan-300 mb-3 border-b border-cyan-800 pb-1">Jom Ulang Kaji</h3>
+                <div id="review-list" class="flex flex-col gap-3 text-left max-h-60 overflow-y-auto pr-2">
+                    <!-- Mistakes JS -->
+                </div>
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-4 mt-8">
+                <button onclick="restartGame()" class="btn-wood py-3 px-6 text-xl font-bangers flex-1 bg-green-700 border-green-300">
+                    <i class="fas fa-redo"></i> MAIN SEMULA
+                </button>
+                <button onclick="quitGame()" class="btn-wood py-3 px-6 text-xl font-bangers flex-1 bg-red-800 border-red-300">
+                    <i class="fas fa-home"></i> KE MENU
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Cursor -->
+    <div id="custom-cursor">
+        <div id="cursor-progress"></div>
+    </div>
+
+<script>
+    // --- 1. DATA KANDUNGAN ---
+    const rawQuestions = [
+        {
+            q: "Lina pandai melukis sejak kecil.",
+            ans: "Ada bakat",
+            choices: ["Besar hati", "Ada bakat", "Hati waja"],
+            exp: "Ada bakat bermaksud mempunyai kebolehan. Lina mempunyai kebolehan melukis."
+        },
+        {
+            q: "Amir tetap mencuba walaupun menaranya sering runtuh.",
+            ans: "Hati waja",
+            choices: ["Hati waja", "Air muka", "Buah hati"],
+            exp: "Hati waja bermaksud tidak mudah berputus asa. Amir terus mencuba."
+        },
+        {
+            q: "Kakak memuji ibu supaya ibu berasa gembira.",
+            ans: "Ambil hati",
+            choices: ["Ada bakat", "Dalam tangan", "Ambil hati"],
+            exp: "Ambil hati bermaksud menyenangkan hati seseorang. Kakak mahu menggembirakan ibu."
+        },
+        {
+            q: "Siti berasa gembira apabila dipuji oleh guru.",
+            ans: "Besar hati",
+            choices: ["Buah hati", "Besar hati", "Air muka"],
+            exp: "Besar hati bermaksud berasa bangga atau gembira. Siti gembira menerima pujian."
+        },
+        {
+            q: "Wajah adik kelihatan sedih selepas mainannya rosak.",
+            ans: "Air muka",
+            choices: ["Air muka", "Hati waja", "Ambil hati"],
+            exp: "Air muka menunjukkan perasaan pada wajah. Wajah adik menunjukkan kesedihan."
+        },
+        {
+            q: "Nabila ialah anak yang sangat disayangi oleh ibu dan ayah.",
+            ans: "Buah hati",
+            choices: ["Dalam tangan", "Ada bakat", "Buah hati"],
+            exp: "Buah hati bermaksud orang yang sangat disayangi. Nabila sangat disayangi oleh ibu dan ayah."
+        },
+        {
+            q: "Pasukan Ali jauh mendahului lawan. Kemenangan hampir pasti menjadi milik mereka.",
+            ans: "Dalam tangan",
+            choices: ["Besar hati", "Dalam tangan", "Hati waja"],
+            exp: "Dalam tangan bermaksud hampir pasti diperoleh. Pasukan Ali hampir pasti menang."
+        },
+        {
+            q: "Suara Hana merdu. Dia pandai menyanyi sejak kecil.",
+            ans: "Ada bakat",
+            choices: ["Ada bakat", "Air muka", "Buah hati"],
+            exp: "Ada bakat bermaksud mempunyai kebolehan. Hana mempunyai kebolehan menyanyi."
+        },
+        {
+            q: "Farid terus belajar berbasikal selepas beberapa kali terjatuh.",
+            ans: "Hati waja",
+            choices: ["Ambil hati", "Besar hati", "Hati waja"],
+            exp: "Hati waja bermaksud tidak mudah berputus asa. Farid terus belajar berbasikal."
+        },
+        {
+            q: "Aina memberikan kad ucapan kepada nenek supaya nenek berasa gembira.",
+            ans: "Ambil hati",
+            choices: ["Dalam tangan", "Ambil hati", "Air muka"],
+            exp: "Ambil hati bermaksud menyenangkan hati seseorang. Aina mahu menggembirakan nenek."
+        }
+    ];
+
+    // --- 1.5. FUNGSI PEMBANTU (HELPER FUNCTIONS) ---
+    function shuffle(array) {
+        let currentIndex = array.length, randomIndex;
+        while (currentIndex !== 0) {
+            randomIndex = Math.floor(Math.random() * currentIndex);
+            currentIndex--;
+            [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+        }
+        return array;
+    }
+
+    // --- 2. PENGURUSAN AUDIO (Web Audio API) ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let isMuted = false;
+
+    function playTone(freq, type, duration, vol=0.1) {
+        if (isMuted) return;
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+    }
+
+    const soundfx = {
+        lock: () => {
+            if(isMuted) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.1);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.1);
+        },
+        shoot: () => {
+            if(isMuted) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.2);
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.2);
+        },
+        correct: () => {
+            if(isMuted) return;
+            const notes = [440, 554, 659, 880]; // A major chord
+            notes.forEach((freq, i) => {
+                setTimeout(() => playTone(freq, 'sine', 0.4, 0.15), i * 100);
+            });
+        },
+        wrong: () => {
+            if(isMuted) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(150, audioCtx.currentTime + 0.4);
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.4);
+        },
+        victory: () => {
+            if(isMuted) return;
+            const melody = [
+                {f: 523, d: 0.15}, {f: 659, d: 0.15}, {f: 784, d: 0.15}, {f: 1046, d: 0.4},
+                {f: 784, d: 0.15}, {f: 1046, d: 0.6}
+            ];
+            let time = 0;
+            melody.forEach(note => {
+                setTimeout(() => playTone(note.f, 'square', note.d, 0.1), time * 1000);
+                time += note.d + 0.05;
+            });
+        }
+    };
+
+    function toggleMute() {
+        isMuted = !isMuted;
+        document.getElementById('btn-mute').innerHTML = isMuted ? '<i class="fas fa-volume-mute"></i>' : '<i class="fas fa-volume-up"></i>';
+    }
+
+    // --- 3. STATE PERMAINAN ---
+    let gameState = {
+        questions: [],
+        currentIndex: 0,
+        score: 0,
+        combo: 0,
+        maxCombo: 0,
+        correctCount: 0,
+        mistakes: [],
+        isPlaying: false,
+        isPaused: false, // Untuk popup maklum balas
+        useCamera: false,
+    };
+
+    let arState = {
+        hoverElement: null,
+        lockedElement: null,
+        hoverStartTime: 0,
+        isPinching: false,
+        lastShootTime: 0,
+        cursorX: -100,
+        cursorY: -100,
+        noHandCounter: 0
+    };
+
+    let cameraStream = null;
+    let hands = null;
+    let mediapipeCamera = null;
+
+    function switchModeToTouch() {
+        stopCamera();
+        gameState.useCamera = false;
+        document.getElementById('camera-container').classList.add('hidden');
+        document.getElementById('no-camera-bg').classList.remove('hidden');
+        document.getElementById('custom-cursor').style.display = 'none';
+        document.getElementById('btn-cam-help').classList.add('hidden');
+        document.getElementById('cam-trouble-box').classList.add('hidden');
+        updateStatus("Mod sentuh/kursor aktif.", false);
+    }
+
+    function toggleCamHelp() {
+        const box = document.getElementById('cam-trouble-box');
+        box.classList.toggle('hidden');
+    }
+
+    async function startGame(useCamera) {
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        
+        gameState = {
+            questions: shuffle([...rawQuestions]),
+            currentIndex: 0,
+            score: 0,
+            combo: 0,
+            maxCombo: 0,
+            correctCount: 0,
+            mistakes: [],
+            isPlaying: true,
+            isPaused: false,
+            useCamera: useCamera
+        };
+
+        document.getElementById('screen-menu').classList.add('hidden');
+        document.getElementById('screen-end').classList.add('hidden');
+        document.getElementById('screen-game').classList.remove('hidden');
+        document.getElementById('cam-trouble-box').classList.add('hidden');
+        
+        updateHUD();
+        
+        if (useCamera) {
+            document.getElementById('camera-container').classList.remove('hidden');
+            document.getElementById('no-camera-bg').classList.add('hidden');
+            document.getElementById('custom-cursor').style.display = 'block';
+            document.getElementById('btn-cam-help').classList.remove('hidden');
+            await initCamera();
+        } else {
+            document.getElementById('camera-container').classList.add('hidden');
+            document.getElementById('no-camera-bg').classList.remove('hidden');
+            document.getElementById('custom-cursor').style.display = 'none';
+            document.getElementById('btn-cam-help').classList.add('hidden');
+            updateStatus("Mod sentuh/kursor aktif.", false);
+        }
+
+        renderQuestion();
+    }
+
+    function renderQuestion() {
+        gameState.isPaused = false;
+        arState.lockedElement = null;
+        arState.hoverElement = null;
+        arState.hoverStartTime = 0;
+        updateCursorVisuals();
+        document.getElementById('btn-manual-shoot').classList.add('hidden');
+
+        const q = gameState.questions[gameState.currentIndex];
+        document.getElementById('q-current').textContent = gameState.currentIndex + 1;
+        document.getElementById('question-text').textContent = q.q;
+
+        const container = document.getElementById('choices-container');
+        container.innerHTML = '';
+        
+        let shuffledChoices = shuffle([...q.choices]);
+        const labels = ['A', 'B', 'C'];
+
+        shuffledChoices.forEach((choice, index) => {
+            const card = document.createElement('div');
+            card.className = 'target-card h-28 md:h-36 flex items-center justify-center p-2 md:p-4 text-center';
+            card.dataset.id = choice;
+            
+            // Interaction for mouse/touch
+            card.onclick = () => {
+                if(!gameState.isPaused && !gameState.useCamera) {
+                    processAnswer(choice, card);
+                } else if (!gameState.isPaused && gameState.useCamera) {
+                    // Even in camera mode, allow tap as fallback
+                    processAnswer(choice, card);
+                }
+            };
+            
+            // Hover events for mouse (if in no-camera mode)
+            card.onmouseenter = () => {
+                if(!gameState.useCamera && !gameState.isPaused) {
+                    card.classList.add('locked');
+                    soundfx.lock();
+                }
+            };
+            card.onmouseleave = () => {
+                if(!gameState.useCamera && !gameState.isPaused) {
+                    card.classList.remove('locked');
+                }
+            };
+
+            const label = document.createElement('div');
+            label.className = 'target-label';
+            label.textContent = `SASARAN ${labels[index]}`;
+
+            const text = document.createElement('span');
+            text.className = 'font-bold text-lg md:text-2xl drop-shadow-sm pointer-events-none leading-tight';
+            text.textContent = choice;
+
+            card.appendChild(label);
+            card.appendChild(text);
+            container.appendChild(card);
+        });
+    }
+
+    function processAnswer(selectedId, cardElement) {
+        if(gameState.isPaused) return;
+        gameState.isPaused = true;
+        
+        const q = gameState.questions[gameState.currentIndex];
+        const isCorrect = selectedId === q.ans;
+        
+        // Visual effects
+        document.getElementById('flash-overlay').style.opacity = '1';
+        setTimeout(() => { document.getElementById('flash-overlay').style.opacity = '0'; }, 100);
+
+        if (isCorrect) {
+            soundfx.correct();
+            cardElement.classList.add('correct');
+            
+            // Confetti
+            confetti({
+                particleCount: 50,
+                spread: 60,
+                origin: { 
+                    x: (cardElement.getBoundingClientRect().left + cardElement.offsetWidth/2) / window.innerWidth,
+                    y: (cardElement.getBoundingClientRect().top + cardElement.offsetHeight/2) / window.innerHeight
+                },
+                colors: ['#f59e0b', '#06b6d4', '#10b981']
+            });
+
+            // Scoring
+            gameState.correctCount++;
+            gameState.combo++;
+            if(gameState.combo > gameState.maxCombo) gameState.maxCombo = gameState.combo;
+            
+            let points = 100 + (Math.max(0, gameState.combo - 1) * 50);
+            gameState.score += points;
+            
+            showFloatingText(`+${points}`, cardElement);
+            if(gameState.combo > 1) {
+                setTimeout(() => showFloatingText(`KOMBO x${gameState.combo}!`, cardElement, -30), 200);
+            }
+        } else {
+            soundfx.wrong();
+            cardElement.classList.add('wrong');
+            gameState.combo = 0;
+            gameState.mistakes.push(q);
+            
+            // Serlahkan jawapan betul
+            const allCards = document.querySelectorAll('.target-card');
+            allCards.forEach(c => {
+                if(c.dataset.id === q.ans) {
+                    c.classList.add('correct');
+                    c.style.borderStyle = 'solid';
+                }
+            });
+        }
+        
+        updateHUD();
+        
+        // Show feedback modal after short delay
+        setTimeout(() => {
+            showFeedbackModal(isCorrect, q);
+        }, 800);
+    }
+
+    function showFloatingText(text, element, offsetY = 0) {
+        const rect = element.getBoundingClientRect();
+        const floatEl = document.createElement('div');
+        floatEl.className = 'float-text';
+        floatEl.textContent = text;
+        floatEl.style.left = (rect.left + rect.width/2 - 20) + 'px';
+        floatEl.style.top = (rect.top + offsetY) + 'px';
+        document.body.appendChild(floatEl);
+        setTimeout(() => floatEl.remove(), 1000);
+    }
+
+    function updateHUD() {
+        document.getElementById('score-display').textContent = `${gameState.score} MATA`;
+        const comboEl = document.getElementById('combo-display');
+        if(gameState.combo > 1) {
+            comboEl.textContent = `KOMBO x${gameState.combo}`;
+            comboEl.classList.remove('hidden');
+        } else {
+            comboEl.classList.add('hidden');
+        }
+    }
+
+    function showFeedbackModal(isCorrect, q) {
+        document.getElementById('modal-feedback').classList.remove('hidden');
+        const icon = document.getElementById('feedback-icon');
+        const title = document.getElementById('feedback-title');
+        const desc = document.getElementById('feedback-desc');
+        const exp = document.getElementById('feedback-explanation');
+
+        if(isCorrect) {
+            icon.innerHTML = '🌟';
+            title.textContent = 'HEBAT!';
+            title.className = 'text-4xl md:text-5xl font-bangers mb-2 text-green-400';
+            desc.textContent = 'Tembakan Tepat!';
+        } else {
+            icon.innerHTML = '🎯';
+            title.textContent = 'OPS!';
+            title.className = 'text-4xl md:text-5xl font-bangers mb-2 text-red-400';
+            desc.textContent = 'Belum tepat. Mari belajar!';
+        }
+        exp.textContent = q.exp;
+    }
+
+    function nextQuestion() {
+        document.getElementById('modal-feedback').classList.add('hidden');
+        gameState.currentIndex++;
+        
+        if (gameState.currentIndex < gameState.questions.length) {
+            renderQuestion();
+        } else {
+            showEndScreen();
+        }
+    }
+
+    function showEndScreen() {
+        gameState.isPlaying = false;
+        document.getElementById('screen-game').classList.add('hidden');
+        document.getElementById('screen-end').classList.remove('hidden');
+        
+        soundfx.victory();
+        setTimeout(() => {
+            confetti({ particleCount: 150, spread: 100, origin: { y: 0.1 }, zIndex: 100 });
+        }, 300);
+
+        // Calculate Stars
+        let stars = 0;
+        if(gameState.correctCount >= 9) stars = 3;
+        else if(gameState.correctCount >= 7) stars = 2;
+        else if(gameState.correctCount >= 1) stars = 1;
+
+        const starContainer = document.getElementById('stars-container');
+        starContainer.innerHTML = '';
+        for(let i=0; i<3; i++) {
+            if(i < stars) {
+                starContainer.innerHTML += '<i class="fas fa-star text-yellow-400"></i>';
+            } else {
+                starContainer.innerHTML += '<i class="far fa-star text-gray-600"></i>';
+            }
+        }
+
+        const msg = document.getElementById('end-message');
+        if(stars === 3) msg.textContent = "Sempurna! Kamu memang hebat!";
+        else if(stars === 2) msg.textContent = "Bagus! Sikit lagi nak sempurna.";
+        else if(stars === 1) msg.textContent = "Usaha yang baik. Boleh cuba lagi!";
+        else msg.textContent = "Teruskan mencuba! Kamu boleh belajar lagi.";
+
+        document.getElementById('stat-score').textContent = gameState.score;
+        document.getElementById('stat-combo').textContent = `x${gameState.maxCombo}`;
+        document.getElementById('stat-correct').textContent = `${gameState.correctCount} / 10`;
+        document.getElementById('stat-accuracy').textContent = `${Math.round((gameState.correctCount/10)*100)}%`;
+
+        const reviewSec = document.getElementById('review-section');
+        const reviewList = document.getElementById('review-list');
+        reviewList.innerHTML = '';
+        
+        if(gameState.mistakes.length > 0) {
+            reviewSec.classList.remove('hidden');
+            gameState.mistakes.forEach(m => {
+                const div = document.createElement('div');
+                div.className = 'bg-black/30 p-3 rounded-lg border border-amber-900/50';
+                div.innerHTML = `
+                    <p class="text-sm text-gray-300 italic mb-1">"${m.q}"</p>
+                    <p class="font-bold text-green-400 mb-1">Jawapan: ${m.ans}</p>
+                    <p class="text-xs text-amber-200">${m.exp}</p>
+                `;
+                reviewList.appendChild(div);
+            });
+        } else {
+            reviewSec.classList.add('hidden');
+        }
+    }
+
+    function restartGame() {
+        startGame(gameState.useCamera);
+    }
+
+    function stopCamera() {
+        if (mediapipeCamera) {
+            try {
+                mediapipeCamera.stop();
+            } catch (e) {
+                console.log("Error stopping camera loop:", e);
+            }
+            mediapipeCamera = null;
+        }
+
+        if (cameraStream) {
+            cameraStream.getTracks().forEach(track => track.stop());
+            cameraStream = null;
+        }
+
+        const videoElement = document.getElementById('video-feed');
+        if (videoElement) {
+            videoElement.srcObject = null;
+        }
+
+        arState.lockedElement = null;
+        arState.isPinching = false;
+        arState.cursorX = -100;
+        arState.cursorY = -100;
+        arState.noHandCounter = 0;
+    }
+
+    function quitGame() {
+        gameState.isPlaying = false;
+        gameState.isPaused = false;
+        
+        stopCamera();
+
+        document.getElementById('screen-game').classList.add('hidden');
+        document.getElementById('screen-end').classList.add('hidden');
+        document.getElementById('modal-feedback').classList.add('hidden');
+        document.getElementById('custom-cursor').style.display = 'none';
+        document.getElementById('btn-manual-shoot').classList.add('hidden');
+        document.getElementById('cam-trouble-box').classList.add('hidden');
+        document.getElementById('screen-menu').classList.remove('hidden');
+    }
+
+    // --- 5. MEDIAPIPE & AR LOGIC ---
+
+    function updateStatus(msg, isWarning = false) {
+        const el = document.getElementById('status-text');
+        el.textContent = msg;
+        el.className = isWarning ? 'text-red-400 font-bold' : 'text-white';
+    }
+
+    async function initCamera() {
+        document.getElementById('loading-cam-msg').classList.remove('hidden');
+        updateStatus("Memuatkan pengesanan tangan...", false);
+
+        if (!hands) {
+            hands = new Hands({locateFile: (file) => {
+                return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+            }});
+            hands.setOptions({
+                maxNumHands: 1,
+                modelComplexity: 0, // Ditingkatkan kepantasannya untuk mengelakkan kelewatan
+                minDetectionConfidence: 0.4, // Ambang keyakinan direndahkan supaya lebih mudah mengesan tangan
+                minTrackingConfidence: 0.4
+            });
+            hands.onResults(onResults);
+        }
+
+        const videoElement = document.getElementById('video-feed');
+        
+        try {
+            if(cameraStream) {
+                cameraStream.getTracks().forEach(t => t.stop());
+            }
+            cameraStream = await navigator.mediaDevices.getUserMedia({ 
+                video: { 
+                    facingMode: "user",
+                    width: { ideal: 640 },
+                    height: { ideal: 480 }
+                } 
+            });
+            videoElement.srcObject = cameraStream;
+            
+            if(!mediapipeCamera) {
+                mediapipeCamera = new Camera(videoElement, {
+                    onFrame: async () => {
+                        if(gameState.isPlaying && !gameState.isPaused) {
+                            await hands.send({image: videoElement});
+                        }
+                    },
+                    width: 640,
+                    height: 480
+                });
+                mediapipeCamera.start();
+            } else {
+                mediapipeCamera.start();
+            }
+            document.getElementById('loading-cam-msg').classList.add('hidden');
+            updateStatus("Mencari tangan...", false);
+        } catch (err) {
+            console.error("Camera error:", err);
+            document.getElementById('loading-cam-msg').classList.add('hidden');
+            updateStatus("Gagal buka kamera. Tukar mod.", true);
+            switchModeToTouch();
+        }
+    }
+
+    function onResults(results) {
+        if(!gameState.isPlaying || gameState.isPaused) return;
+
+        const cursor = document.getElementById('custom-cursor');
+        
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+            arState.noHandCounter = 0;
+            document.getElementById('cam-trouble-box').classList.add('hidden');
+
+            const hand = results.multiHandLandmarks[0];
+            
+            // Landmark 8: Index tip, Landmark 4: Thumb tip
+            const indexTip = hand[8];
+            const thumbTip = hand[4];
+
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            
+            // Pelicinan kursor
+            const targetX = (1 - indexTip.x) * w;
+            const targetY = indexTip.y * h;
+            
+            if(arState.cursorX === -100) {
+                arState.cursorX = targetX;
+                arState.cursorY = targetY;
+            } else {
+                arState.cursorX = arState.cursorX + (targetX - arState.cursorX) * 0.45;
+                arState.cursorY = arState.cursorY + (targetY - arState.cursorY) * 0.45;
+            }
+
+            cursor.style.left = `${arState.cursorX}px`;
+            cursor.style.top = `${arState.cursorY}px`;
+            
+            checkIntersections(arState.cursorX, arState.cursorY);
+
+            // Jarak cubitan
+            const dist = Math.hypot(indexTip.x - thumbTip.x, indexTip.y - thumbTip.y);
+            processPinch(dist);
+
+        } else {
+            // Tiada tangan dikesan
+            arState.noHandCounter++;
+            if(arState.lockedElement) {
+                arState.lockedElement.classList.remove('locked');
+                arState.lockedElement = null;
+            }
+            updateCursorVisuals();
+            updateStatus("Sedang mencari tangan...");
+            document.getElementById('btn-manual-shoot').classList.add('hidden');
+
+            // Papar petua secara automatik jika tidak dikesan selepas beberapa ketika
+            if (arState.noHandCounter > 90) { // ~3 saat tanpa pengesanan
+                document.getElementById('cam-trouble-box').classList.remove('hidden');
+            }
+        }
+    }
+
+    function checkIntersections(x, y) {
+        if (gameState.isPaused) return;
+
+        const cards = document.querySelectorAll('.target-card');
+        let currentTarget = null;
+
+        cards.forEach(card => {
+            const rect = card.getBoundingClientRect();
+            if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+                currentTarget = card;
+            }
+        });
+
+        const progressEl = document.getElementById('cursor-progress');
+        const LOCK_DELAY = 350; // Perlu berada di atas kad 350ms sebelum dikunci
+
+        if (currentTarget) {
+            if (arState.hoverElement !== currentTarget) {
+                // Berada di atas kad baharu
+                arState.hoverElement = currentTarget;
+                arState.hoverStartTime = Date.now();
+                if (arState.lockedElement) {
+                    arState.lockedElement.classList.remove('locked');
+                    arState.lockedElement = null;
+                }
+                progressEl.style.display = 'block';
+            } else if (!arState.lockedElement) {
+                // Menyemak jika cukup masa pemegangan (hover duration)
+                const elapsed = Date.now() - arState.hoverStartTime;
+                if (elapsed >= LOCK_DELAY) {
+                    arState.lockedElement = currentTarget;
+                    arState.lockedElement.classList.add('locked');
+                    progressEl.style.display = 'none';
+                    soundfx.lock();
+                    updateStatus("🎯 SASARAN DIKUNCI! Cubit untuk menembak.");
+                    document.getElementById('btn-manual-shoot').classList.remove('hidden');
+                }
+            }
+        } else {
+            // Luar mana-mana kad
+            if (arState.hoverElement || arState.lockedElement) {
+                if (arState.lockedElement) {
+                    arState.lockedElement.classList.remove('locked');
+                }
+                arState.hoverElement = null;
+                arState.lockedElement = null;
+                arState.hoverStartTime = 0;
+                progressEl.style.display = 'none';
+                updateStatus("☝️ Tangan dikesan. Arahkan kursor ke kad jawapan.");
+                document.getElementById('btn-manual-shoot').classList.add('hidden');
+            }
+        }
+        updateCursorVisuals();
+    }
+
+    function processPinch(distance) {
+        // Dikembangkan julat ketat supaya tidak perasap salah pemicu
+        const PINCH_THRESHOLD_CLOSE = 0.045; 
+        const PINCH_THRESHOLD_OPEN = 0.085;
+        const now = Date.now();
+
+        if (distance < PINCH_THRESHOLD_CLOSE) {
+            if (!arState.isPinching) {
+                arState.isPinching = true;
+                updateCursorVisuals();
+
+                if (arState.lockedElement && (now - arState.lastShootTime > 800) && !gameState.isPaused) {
+                    arState.lastShootTime = now;
+                    executeShoot(arState.lockedElement);
+                }
+            }
+        } else if (distance > PINCH_THRESHOLD_OPEN) {
+            if (arState.isPinching) {
+                arState.isPinching = false;
+                updateCursorVisuals();
+            }
+        }
+    }
+
+    function executeShoot(targetCard) {
+        if(gameState.isPaused) return;
+        soundfx.shoot();
+        processAnswer(targetCard.dataset.id, targetCard);
+    }
+
+    function manualShoot() {
+        if(arState.lockedElement && !gameState.isPaused) {
+            executeShoot(arState.lockedElement);
+        }
+    }
+
+    function updateCursorVisuals() {
+        const cursor = document.getElementById('custom-cursor');
+        if(arState.lockedElement) {
+            cursor.classList.add('locked');
+        } else {
+            cursor.classList.remove('locked');
+        }
+        
+        if(arState.isPinching) {
+            cursor.classList.add('pinching');
+        } else {
+            cursor.classList.remove('pinching');
+        }
+    }
+
+</script>
+</body>
+</html>
